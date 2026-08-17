@@ -469,7 +469,12 @@ def _eval_respond(
 
         else:  # COUNTER
             if is_last:
-                c_mid = (c_bid + c_ask) / 2.0
+                # We counter on last turn → we become the forcer.
+                # Forcer is short (sells at midpoint). Forcer pays forcing_fee.
+                # net_shift: if we hold TRICK_ROOM/STEALTH_ROCK we shift the midpoint
+                # in our favour (midpoint moves up → we sell higher as short).
+                c_mid = (c_bid + c_ask) // 2
+                # Our short PnL = price - S. Price = midpoint + shift in our favour.
                 fill_price = c_mid + gs.net_shift
                 raw = float(fill_price - s) - gs.forcing_fee
                 if sub:
