@@ -508,11 +508,10 @@ def _eval_respond(
                 else:
                     ev_accept = float(c_bid - s)
 
-                # If not accepted: realistic continuation EV with turn delay & forcing risk
+                # If not accepted: guess mid settlement (conservative)
                 orig_mid = (bid_p + ask_p) / 2.0
-                raw_cont = float(s - orig_mid) if s > orig_mid else float(orig_mid - s)
-                forcing_risk_penalty = 0.25 * float(gs.n_turns - turn)
-                ev_continue = max(0.0, 0.40 * raw_cont - forcing_risk_penalty)
+                ev_continue = float(s - orig_mid) if s > orig_mid else float(orig_mid - s)
+                ev_continue *= 0.5  # partial expectation
 
                 ev = p_accept * ev_accept + (1.0 - p_accept) * ev_continue
                 if sub:
