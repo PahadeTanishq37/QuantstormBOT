@@ -175,7 +175,7 @@ def _lambda_te(r: int, te_mine: int) -> float:
 
 # Opponent Behavioral Types for Bayesian Auction Policy
 _SHADE_TYPES = (0.0, 0.35, 0.55, 0.70, 0.85)
-_PRIOR_WEIGHTS = (0.25, 0.15, 0.25, 0.25, 0.10)
+_PRIOR_WEIGHTS = (0.05, 0.10, 0.30, 0.40, 0.15)
 
 
 class OpponentModel:
@@ -621,37 +621,36 @@ class Bot:
         base_v = _base_pv(name, r)
 
         if name == "TRICK_ROOM":
-            # Synergy: if we hold STEALTH_ROCK, net shift on forced fills is +5 (non-linear boost)
+            # Expected forced fill shift value = 3.0 * P(forced_fill)
+            p_force = max(0.20, 0.35 - 0.03 * (r - 1))
             if "STEALTH_ROCK" in powers_mine:
-                base_v += 0.25
-            # Denial: if opponent holds STEALTH_ROCK, acquiring TRICK_ROOM flips net shift to +1
+                return 5.0 * p_force
             elif "STEALTH_ROCK" in powers_theirs:
-                base_v += 0.30
-            return base_v
+                return 3.0 * p_force + 0.30
+            return 3.0 * p_force + 0.10
 
         elif name == "STEALTH_ROCK":
-            # Synergy: if we hold TRICK_ROOM, net shift is +5
+            # Persistent shift across all remaining rounds (6 - r)
+            rem_rounds = 6 - r
+            p_force = max(0.20, 0.35 - 0.03 * (r - 1))
+            val = 2.0 * rem_rounds * p_force * 0.50
             if "TRICK_ROOM" in powers_mine:
-                base_v += 0.20
-            return base_v
+                val += 0.20
+            return max(0.50, val)
 
         elif name == "SUBSTITUTE":
-            # If we hold FORESIGHT, score uncertainty is lower → downside protection worth slightly less
             if "FORESIGHT" in powers_mine:
-                base_v = max(0.10, base_v - 0.15)
+                return max(0.10, base_v - 0.15)
             return base_v
 
         elif name == "FORESIGHT":
-            # Information option: higher value in early/mid rounds when TRANSFORM is in pool (r <= 3)
             if r <= 3 and "TRANSFORM" not in powers_mine and "TRANSFORM" not in powers_theirs:
-                base_v += 0.20
+                return base_v + 0.20
             return base_v
 
         elif name == "TRANSFORM":
-            # Counterfactual swap & denial value
             if abs(k_mine) <= 1:
-                return base_v  # Flat hand → full value
-            # Denial value: if opponent looks flat from quote reading and hasn't transformed yet
+                return base_v
             if self._taker_quotes:
                 latest_r = max(self._taker_quotes)
                 opp_k_est = self._taker_quotes[latest_r] - self._opp.quote_bias
@@ -745,15 +744,8 @@ class Bot:
                     best_gain = net_gain
                     best_b = b
 
-            # Minimum bid guard: if power is clearly worth > opportunity cost, bid at least 1
-            if best_b == 0:
-                lam1_raw = _lambda_te(r, max(0, te_left - 1))
-                lam1 = _TE_SALVAGE + (lam1_raw - _TE_SALVAGE) * shade_scale
-                p_win1 = self._opp.p_win_if_bid(1, pv, te_theirs)
-                if p_win1 * pv > lam1 and te_left >= 1:
-                    best_b = 1
-
-            if best_b > 0 and best_gain > 0:
+            # Select bid with highest positive expected gain
+            if best_b > 0 and best_gain > 0.01:
                 out[name] = best_b
                 te_left -= best_b
 
@@ -787,9 +779,11 @@ class Bot:
             c = base_c + coff
             for w in range(gs.final_cap, gs.spread_cap + 1):
                 ev = _eval_maker_quote(c, w, samples, gs)
-                # Slight bonus for being centred (symmetry is profitable under uncertainty)
+                # Slight bonus for being centred and tight (avoids width premium penalties)
                 if coff == 0:
                     ev += 0.01
+                if w == gs.final_cap:
+                    ev += 0.05
                 if ev > best_ev:
                     best_ev = ev
                     b_q = c - w // 2
