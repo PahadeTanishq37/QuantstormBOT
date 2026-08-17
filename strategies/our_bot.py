@@ -1,4 +1,4 @@
-# Name: tanishq_pahade_bot
+# Name: Tanishq Pahade
 # College: Sanjivani University
 # Roll Number: 2124UDSM1068
 

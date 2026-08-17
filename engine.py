@@ -587,11 +587,13 @@ class BotWrapper:
         # where the pricing math says the range stops carrying information.
         floor = obs.final_cap
         max_width = min(ask - bid, max(floor, (ask - bid) - self.config.MIN_REDUCTION))
-        if na - nb > max_width:
+        width = na - nb
+        if not (floor <= width <= max_width):
+            target = max_width if width > max_width else floor
             mid = (nb + na) // 2
-            nb = max(bid, mid - max_width // 2)
-            na = min(ask, nb + max_width)
-            nb = max(bid, na - max_width)
+            nb = max(bid, mid - target // 2)
+            na = min(ask, nb + target)
+            nb = max(bid, na - target)
 
         return ("COUNTER", nb, na)
 
